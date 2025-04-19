@@ -84,6 +84,51 @@ handle_device_function_desc = {
 }
 
 
+# 设备摄像机控制
+handle_device_camera_function_desc = {
+    "type": "function",
+    "function": {
+        "name": "handle_device_camera",
+        "description": (
+            "用户想要获取或者设置摄像机的状态，或者用户想打开摄像机或关闭摄像机。"
+            "比如用户说现在摄像机是否打开，参数为：device_type:Camera,action:get。"
+            "比如用户说开摄像机，参数为：device_type:Camera,action:set,value:1。"
+            "比如用户说把摄像机开打，参数为：device_type:Camera,action:set,value:1。"
+            "比如用户说关摄像机，参数为：device_type:Camera,action:set,value:0。"
+            "比如用户说把摄像机关上，参数为：device_type:Camera,action:set,value:0。"
+            "只要用户说的内容包含‘看一看’，则把参数设置为：device_type:Camera,action:take,value:-1。"
+            "只要用户说的内容包含‘看看’，则把参数设置为：device_type:Camera,action:take,value:-1。"
+            "只要用户说的内容包含‘看一下’，则把参数设置为：device_type:Camera,action:take,value:-1。"
+            "只要用户说的内容包含‘看到’，则把参数设置为：device_type:Camera,action:take,value:-1。"
+            "只要用户说的内容包含‘描述一下’，则把参数设置为：device_type:Camera,action:take,value:-1。"
+            "只要用户说的内容包含‘拍照’，则把参数设置为：device_type:Camera,action:take,value:-1。"
+            "只要用户说的内容包含‘拍一张’，则把参数设置为：device_type:Camera,action:take,value:-1。"
+
+
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "device_type": {
+                    "type": "string",
+                    "description": "设备类型，只有一个值：Camera(摄像机)"
+                },
+                "action": {
+                    "type": "string",
+                    "description": "动作名称，可选值：get(获取),set(设置)，take(拍照)"
+                },
+                "value": {
+                    "type": "integer",
+                    "description": "值大小，可选值：0，1，-1"
+                }
+            },
+            "required": ["device_type", "action"]
+        }
+    }
+}
+
+
+
 @register_function('handle_device', handle_device_function_desc, ToolType.IOT_CTL)
 def handle_device(conn, device_type: str, action: str, value: int = None):
     if device_type == "Speaker":
@@ -109,3 +154,41 @@ def handle_device(conn, device_type: str, action: str, value: int = None):
             device_name=device_name, device_type=device_type, method_name=method_name,
             property_name=property_name, new_value=value, action=action
         )
+    
+
+@register_function('handle_device_camera', handle_device_camera_function_desc, ToolType.IOT_CTL)
+def handle_device_camera(conn, device_type: str, action: str, value: int = None):
+    if device_type == "Camera":
+        method_name, property_name, device_name = "TurnOn", "power", "摄像机"
+    else:
+        raise Exception(f"未识别的设备类型: {device_type}")
+
+    if action not in ["get", "set", "take"]:
+        raise Exception(f"未识别的动作名称: {action}")
+
+    if action == "get":
+        # get
+        return _handle_device_action(
+            conn, _get_device_status, f"当前{device_name}", f"获取{device_name}失败",
+            device_name=device_name, device_type=device_type, property_name=property_name,
+        )
+    elif action == "take":
+        method_name = "TakePhoto"
+        # take
+        return _handle_device_action(
+            conn, _set_device_property, f"拍照成功", f"拍照失败",
+            device_name=device_name, device_type=device_type, method_name=method_name,
+            property_name=property_name, new_value=value, action=action
+        )
+    else:
+        method_name = "TurnOn" if value == 1 else "TurnOff"
+        action_message = "打开" if value == 1 else "关闭"
+        # set
+        return _handle_device_action(
+            conn, _set_device_property, f"{device_name}已成功{action_message}", f"{device_name}{action_message}失败",
+            device_name=device_name, device_type=device_type, method_name=method_name,
+            property_name=property_name, new_value=value, action=action
+        )
+
+
+
