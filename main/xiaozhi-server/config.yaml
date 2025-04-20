@@ -151,6 +151,8 @@ selected_module:
   # 意图识别可使用function_call，缺点：需要所选择的LLM支持function_call，优点：按需调用工具、速度快，理论上能全部操作所有iot指令
   # 默认免费的ChatGLMLLM就已经支持function_call，但是如果像追求稳定建议把LLM设置成：DoubaoLLM，使用的具体model_name是：doubao-pro-32k-functioncall-241028
   Intent: function_call
+  # 视觉语言模块
+  VL: DoubaoVL
 
 # 意图识别，是用于理解用户意图的模块，例如：播放音乐
 Intent:
@@ -595,3 +597,22 @@ TTS:
       # Authorization: Bearer xxxx
     format: wav # 接口返回的音频格式
     output_dir: tmp/
+
+VL:
+  DoubaoVL:
+    # 定义VL API类型
+    type: openai
+    # 先开通服务，打开以下网址，开通的服务搜索doubao-1.5-vision-pro-32k-250115，开通它
+    # 开通改地址：https://console.volcengine.com/ark/region:ark+cn-beijing/model/detail?Id=doubao-1-5-vision-pro-32k
+    # 开通后，进入这里获取密钥：https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey?apikey=%7B%7D
+    api_url: "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
+    # 方舟模型API密钥，请替换为你自己的密钥
+    api_key: "你创建的API Key"
+    # 使用的模型名称
+    model_name: "doubao-1.5-vision-pro-32k-250115"
+    # 温度控制创造性，取值范围0-1
+    temperature: 0.9
+    # 最大生成token数
+    max_tokens: 80
+    # 控制采样概率分布，推荐值0.95
+    top_p: 0.95

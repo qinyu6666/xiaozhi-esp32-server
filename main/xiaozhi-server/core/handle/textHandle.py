@@ -12,6 +12,7 @@ from core.handle.sendAudioHandle import send_stt_message, send_tts_message
 from core.handle.iotHandle import handleIotDescriptors, handleIotStatus
 from plugins_func.register import Action, ActionResponse
 from core.utils.dialogue import Message
+from core.utils.vl import create_instance
 import asyncio
 
 TAG = __name__
@@ -138,55 +139,16 @@ async def handleIotCameraPhoto(conn, msg_json):
             
         logger.bind(tag=TAG).info(f"已保存照片：{filepath}，尺寸：{width}x{height}")
 
-        # 使用HTTP请求调用方舟模型API
-        api_url = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer 43be4ad4-aad9-4321-b58a-5dca2efda418"
-        }
+        # 从配置中获取VL提供者
+        selected_vl = conn.config.get("selected_module", {}).get("VL", "DoubaoVL")
+        vl_config = conn.config.get("VL", {}).get(selected_vl, {})
+        vl_type = vl_config.get("type", "openai")
         
-        payload = {
-            "model": "doubao-1.5-vision-pro-32k-250115",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "简短的描述一下这个图片里面主要的内容"
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_data}"
-                            }
-                        }
-                    ]
-                }
-            ],
-            "temperature": 0.9,  # 提高创造性
-            "max_tokens": 80,    # 限制输出长度
-            "top_p": 0.95
-        }
+        # 创建VL提供者实例
+        vl_provider = create_instance(vl_type, vl_config)
         
-        image_description = None
-        
-        # 设置超时时间为5秒，如果API响应太慢就生成简单描述
-        timeout = aiohttp.ClientTimeout(total=5.0)
-        
-        try:
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.post(api_url, headers=headers, json=payload) as response:
-                    if response.status == 200:
-                        response_data = await response.json()
-                        image_description = response_data['choices'][0]['message']['content']
-                        logger.bind(tag=TAG).info(f"图片描述：{image_description}")
-                    else:
-                        error_text = await response.text()
-                        logger.bind(tag=TAG).error(f"API调用失败：{response.status}, {error_text}")
-        except asyncio.TimeoutError:
-            logger.bind(tag=TAG).warning("API请求超时，使用默认描述")
-            image_description = "这是一张照片。由于处理速度原因，无法提供详细描述。"
+        # 处理图像
+        image_description = await vl_provider.process_image(base64_data)
         
         # 发送确认消息给客户端
         response = {
