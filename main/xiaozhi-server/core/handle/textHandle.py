@@ -166,6 +166,45 @@ async def handleTextMessage(conn, message):
             if "voice_type" in msg_json:
                 voice_type = msg_json["voice_type"]
                 conn.logger.bind(tag=TAG).info(f"语音类型变更：{voice_type}")
+                
+                # EdgeTTS 音色映射字典
+                voice_mapping = {
+                    "male": "zh-CN-YunyangNeural",      # 云扬 - 成年男声
+                    "female": "zh-CN-XiaoxiaoNeural",     # 晓晓 - 成年女声  
+                    "elder": "zh-CN-YunjianNeural",      # 云健 - 沉稳男声
+                    "child": "zh-CN-XiaoyiNeural"        # 晓伊 - 年轻女声
+                }
+                
+                # 检查是否为 EdgeTTS 并且有对应的映射
+                if voice_type in voice_mapping:
+                    selected_tts_module = conn.config["selected_module"]["TTS"]
+                    
+                    # 检查当前是否使用 EdgeTTS
+                    if selected_tts_module == "EdgeTTS":
+                        edgetts_voice = voice_mapping[voice_type]
+                        conn.logger.bind(tag=TAG).info(f"切换EdgeTTS音色：{voice_type} -> {edgetts_voice}")
+                        
+                        # 更新配置中的 voice 值
+                        conn.config["TTS"]["EdgeTTS"]["voice"] = edgetts_voice
+                        
+                        # 重新初始化 TTS 实例
+                        try:
+                            from core.utils.modules_initialize import initialize_tts
+                            new_tts = initialize_tts(conn.config)
+                            if new_tts:
+                                # 关闭旧的 TTS 实例
+                                if hasattr(conn.tts, 'close'):
+                                    conn.tts.close()
+                                conn.tts = new_tts
+                                conn.logger.bind(tag=TAG).info(f"TTS音色切换成功：{voice_type}")
+                            else:
+                                conn.logger.bind(tag=TAG).error("TTS音色切换失败：无法创建新的TTS实例")
+                        except Exception as e:
+                            conn.logger.bind(tag=TAG).error(f"TTS音色切换失败：{str(e)}")
+                    else:
+                        conn.logger.bind(tag=TAG).warning(f"当前TTS类型为{selected_tts_module}，不支持动态音色切换")
+                else:
+                    conn.logger.bind(tag=TAG).warning(f"不支持的音色类型：{voice_type}")
         else:
             conn.logger.bind(tag=TAG).error(f"收到未知类型消息：{message}")
     except json.JSONDecodeError:
