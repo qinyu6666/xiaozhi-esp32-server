@@ -189,14 +189,34 @@ async def handleTextMessage(conn, message):
                         
                         # 重新初始化 TTS 实例
                         try:
-                            from core.utils.modules_initialize import initialize_tts
-                            new_tts = initialize_tts(conn.config)
-                            if new_tts:
-                                # 关闭旧的 TTS 实例
+                            from core.utils.modules_initialize import initialize_modules
+                            
+                            # 参考 websocket_server.py 的方式重新初始化 TTS 模块
+                            modules = initialize_modules(
+                                conn.logger,
+                                conn.config,
+                                False,  # update_vad
+                                False,  # update_asr
+                                False,  # update_llm
+                                True,   # update_tts
+                                False,  # update_memory
+                                False,  # update_intent
+                            )
+                            
+                            if "tts" in modules and modules["tts"]:
+                                # 关闭旧的 TTS 实例的处理线程
+                                if hasattr(conn.tts, 'stop_event'):
+                                    conn.tts.stop_event.set()
                                 if hasattr(conn.tts, 'close'):
                                     conn.tts.close()
-                                conn.tts = new_tts
-                                conn.logger.bind(tag=TAG).info(f"TTS音色切换成功：{voice_type}")
+                                
+                                # 使用新的 TTS 实例
+                                conn.tts = modules["tts"]
+                                
+                                # 启动新 TTS 实例的音频处理线程
+                                await conn.tts.open_audio_channels(conn)
+                                
+                                conn.logger.bind(tag=TAG).info(f"TTS音色切换成功：{voice_type} -> {edgetts_voice}")
                             else:
                                 conn.logger.bind(tag=TAG).error("TTS音色切换失败：无法创建新的TTS实例")
                         except Exception as e:
