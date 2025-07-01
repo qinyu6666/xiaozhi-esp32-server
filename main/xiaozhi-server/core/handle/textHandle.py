@@ -161,6 +161,11 @@ async def handleTextMessage(conn, message):
             # 重启服务器
             elif msg_json["action"] == "restart":
                 await conn.handle_restart(msg_json)
+        elif msg_json["type"] == "voice_change":
+            conn.logger.bind(tag=TAG).info(f"收到voice_change消息：{message}")
+            if "voice_type" in msg_json:
+                voice_type = msg_json["voice_type"]
+                conn.logger.bind(tag=TAG).info(f"语音类型变更：{voice_type}")
         else:
             conn.logger.bind(tag=TAG).error(f"收到未知类型消息：{message}")
     except json.JSONDecodeError:
