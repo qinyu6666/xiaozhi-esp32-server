@@ -152,6 +152,9 @@ class TTSProvider(TTSProviderBase):
             self.voice = config.get("private_voice")
         else:
             self.voice = config.get("speaker")
+
+        # self.voice = "zh_female_wanwanxiaohe_moon_bigtts"
+
         speech_rate = config.get("speech_rate", "0")
         loudness_rate = config.get("loudness_rate", "0")
         pitch = config.get("pitch", "0")
@@ -292,6 +295,8 @@ class TTSProvider(TTSProviderBase):
                 continue
 
     async def text_to_speak(self, text, _):
+        print(self.voice)
+        print(self.conn.sentence_id)
         """发送文本到TTS服务"""
         try:
             # 建立新连接
@@ -302,6 +307,7 @@ class TTSProvider(TTSProviderBase):
             #  过滤Markdown
             filtered_text = MarkdownCleaner.clean_markdown(text)
 
+            
             # 发送文本
             await self.send_text(self.voice, filtered_text, self.conn.sentence_id)
             return

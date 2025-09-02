@@ -125,7 +125,16 @@ public class ConfigServiceImpl implements ConfigService {
         if (agent.getTtsModelId() != null) {
             ModelConfigEntity ttsModel = modelConfigService.getModelById(agent.getTtsModelId(), true);
             if (ttsModel != null && ttsModel.getConfigJson() != null) {
-                Object apiVoice = ttsModel.getConfigJson().get("voice");
+                // 根据不同TTS模型类型获取对应的voice字段
+                Object apiVoice = null;
+                if ("TTS_HuoshanDoubleStreamTTS".equals(agent.getTtsModelId())) {
+                    // 火山引擎使用speaker字段
+                    apiVoice = ttsModel.getConfigJson().get("speaker");
+                } else {
+                    // 其他模型使用voice字段
+                    apiVoice = ttsModel.getConfigJson().get("voice");
+                }
+                
                 if (apiVoice != null && StringUtils.isNotBlank(apiVoice.toString())) {
                     String voiceValue = apiVoice.toString();
                     // 检查是否为系统默认值，只有非默认值才认为是用户API自定义
@@ -370,6 +379,8 @@ public class ConfigServiceImpl implements ConfigService {
         systemDefaultVoices.put("TTS_VolcesAiGatewayTTS", "zh_male_shaonianzixin_moon_bigtts");
         systemDefaultVoices.put("TTS_IndexStreamTTS", "jay_klee");
         systemDefaultVoices.put("TTS_LinkeraiTTS", "OUeAo1mhq6IBExi");
+        systemDefaultVoices.put("TTS_HuoshanDoubleStreamTTS", "zh_female_shuangkuaisisi_moon_bigtts");
+
         
         String defaultVoice = systemDefaultVoices.get(modelId);
         return defaultVoice != null && defaultVoice.equals(voiceValue);
