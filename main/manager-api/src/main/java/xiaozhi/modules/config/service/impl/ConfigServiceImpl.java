@@ -115,16 +115,47 @@ public class ConfigServiceImpl implements ConfigService {
         if (agent == null) {
             throw new RenException("智能体未找到");
         }
-        // 获取音色信息
+        // 获取音色信息 - 按优先级：API自定义 > 音色表选择 > 模型默认值
         String voice = null;
         String referenceAudio = null;
         String referenceText = null;
-        TimbreDetailsVO timbre = timbreService.get(agent.getTtsVoiceId());
-        if (timbre != null) {
-            voice = timbre.getTtsVoice();
-            referenceAudio = timbre.getReferenceAudio();
-            referenceText = timbre.getReferenceText();
+        
+        // 优先级1：检查用户是否通过API直接配置了voice
+        boolean hasApiCustomVoice = false;
+        if (agent.getTtsModelId() != null) {
+            ModelConfigEntity ttsModel = modelConfigService.getModelById(agent.getTtsModelId(), true);
+            if (ttsModel != null && ttsModel.getConfigJson() != null) {
+                Object apiVoice = ttsModel.getConfigJson().get("voice");
+                if (apiVoice != null && StringUtils.isNotBlank(apiVoice.toString())) {
+                    String voiceValue = apiVoice.toString();
+                    // 检查是否为系统默认值，只有非默认值才认为是用户API自定义
+                    boolean isSystemDefault = isSystemDefaultVoice(agent.getTtsModelId(), voiceValue);
+                    if (!isSystemDefault) {
+                        voice = voiceValue; // 使用API自定义的voice
+                        hasApiCustomVoice = true;
+                    }
+                }
+            }
         }
+        
+        // 优先级2：如果没有API自定义，使用音色表选择
+        if (!hasApiCustomVoice) {
+            TimbreDetailsVO timbre = timbreService.get(agent.getTtsVoiceId());
+            if (timbre != null) {
+                voice = timbre.getTtsVoice();
+                referenceAudio = timbre.getReferenceAudio();
+                referenceText = timbre.getReferenceText();
+            }
+        } else {
+            // 如果使用了API自定义voice，仍然尝试获取参考音频和文本
+            TimbreDetailsVO timbre = timbreService.get(agent.getTtsVoiceId());
+            if (timbre != null) {
+                referenceAudio = timbre.getReferenceAudio();
+                referenceText = timbre.getReferenceText();
+            }
+        }
+        
+        // 优先级3：如果都没有设置，voice保持为null，最终使用模型默认值
         // 构建返回数据
         Map<String, Object> result = new HashMap<>();
         // 获取单台设备每天最多输出字数
@@ -319,6 +350,32 @@ public class ConfigServiceImpl implements ConfigService {
         List<AgentVoicePrintEntity> entities = agentVoicePrintDao.selectList(queryWrapper);
         return ConvertUtils.sourceToTarget(entities, AgentVoicePrintVO.class);
     }
+
+    /**
+     * 判断是否为系统默认的voice值
+     * 
+     * @param modelId 模型ID
+     * @param voiceValue 当前voice值
+     * @return 是否为系统默认值
+     */
+    private boolean isSystemDefaultVoice(String modelId, String voiceValue) {
+        // 定义系统默认的voice配置
+        Map<String, String> systemDefaultVoices = new HashMap<>();
+        systemDefaultVoices.put("TTS_EdgeTTS", "zh-CN-XiaoxiaoNeural");
+        systemDefaultVoices.put("TTS_DoubaoTTS", "BV001_streaming");
+        systemDefaultVoices.put("TTS_AliyunTTS", "xiaoyun");
+        systemDefaultVoices.put("TTS_MinimaxTTS", "female-shaonv");
+        systemDefaultVoices.put("TTS_OpenAITTS", "onyx");
+        systemDefaultVoices.put("TTS_TencentTTS", "101001");
+        systemDefaultVoices.put("TTS_VolcesAiGatewayTTS", "zh_male_shaonianzixin_moon_bigtts");
+        systemDefaultVoices.put("TTS_IndexStreamTTS", "jay_klee");
+        systemDefaultVoices.put("TTS_LinkeraiTTS", "OUeAo1mhq6IBExi");
+        
+        String defaultVoice = systemDefaultVoices.get(modelId);
+        return defaultVoice != null && defaultVoice.equals(voiceValue);
+    }
+
+
 
     /**
      * 构建模块配置

@@ -3,7 +3,8 @@ import time
 import base64
 from typing import Optional, Dict
 
-import httpx
+import requests
+import json
 
 TAG = __name__
 
@@ -20,8 +21,8 @@ class DeviceBindException(Exception):
 
 class ManageApiClient:
     _instance = None
-    _client = None
-    _secret = None
+    _base_url = None
+    _headers = None
 
     def __new__(cls, config):
         """单例模式确保全局唯一实例，并支持传入配置参数"""
@@ -32,7 +33,7 @@ class ManageApiClient:
 
     @classmethod
     def _init_client(cls, config):
-        """初始化持久化连接池"""
+        """初始化HTTP客户端配置"""
         cls.config = config.get("manager-api")
 
         if not cls.config:
@@ -45,25 +46,72 @@ class ManageApiClient:
             raise Exception("请先配置manager-api的secret")
 
         cls._secret = cls.config.get("secret")
+        
         cls.max_retries = cls.config.get("max_retries", 6)  # 最大重试次数
         cls.retry_delay = cls.config.get("retry_delay", 10)  # 初始重试延迟(秒)
-        # NOTE(goody): 2025/4/16 http相关资源统一管理，后续可以增加线程池或者超时
-        # 后续也可以统一配置apiToken之类的走通用的Auth
-        cls._client = httpx.Client(
-            base_url=cls.config.get("url"),
-            headers={
-                "User-Agent": f"PythonClient/2.0 (PID:{os.getpid()})",
-                "Accept": "application/json",
-                "Authorization": "Bearer " + cls._secret,
-            },
-            timeout=cls.config.get("timeout", 30),  # 默认超时时间30秒
-        )
+        cls.timeout = cls.config.get("timeout", 30)  # 默认超时时间30秒
+        
+        # 设置base URL和headers
+        cls._base_url = cls.config.get("url").rstrip("/")
+        cls._headers = {
+            "User-Agent": f"PythonClient/2.0 (PID:{os.getpid()})",
+            "Accept": "application/json",
+            "Authorization": f"Bearer {cls._secret}",
+            "Content-Type": "application/json"
+        }
 
     @classmethod
     def _request(cls, method: str, endpoint: str, **kwargs) -> Dict:
         """发送单次HTTP请求并处理响应"""
+        # 构建完整URL
         endpoint = endpoint.lstrip("/")
-        response = cls._client.request(method, endpoint, **kwargs)
+        full_url = f"{cls._base_url}/{endpoint}"
+        
+        # print(f"[DEBUG] 发送HTTP请求: {method} {full_url}")
+        # print(f"[DEBUG] Headers: {cls._headers}")
+        
+        # 使用requests发送请求
+        if method.upper() == "POST":
+            if 'json' in kwargs:
+                response = requests.post(
+                    full_url, 
+                    headers=cls._headers, 
+                    json=kwargs['json'], 
+                    timeout=cls.timeout
+                )
+            else:
+                response = requests.post(
+                    full_url, 
+                    headers=cls._headers, 
+                    timeout=cls.timeout
+                )
+        elif method.upper() == "PUT":
+            if 'json' in kwargs:
+                response = requests.put(
+                    full_url, 
+                    headers=cls._headers, 
+                    json=kwargs['json'], 
+                    timeout=cls.timeout
+                )
+            else:
+                response = requests.put(
+                    full_url, 
+                    headers=cls._headers, 
+                    timeout=cls.timeout
+                )
+        else:
+            response = requests.request(
+                method, 
+                full_url, 
+                headers=cls._headers, 
+                timeout=cls.timeout, 
+                **kwargs
+            )
+        
+        # print(f"[DEBUG] 响应状态码: {response.status_code}")
+        # print(f"[DEBUG] 实际请求URL: {response.url}")
+        
+        # 检查HTTP状态码
         response.raise_for_status()
 
         result = response.json()
@@ -84,12 +132,12 @@ class ManageApiClient:
         """判断异常是否应该重试"""
         # 网络连接相关错误
         if isinstance(
-            exception, (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError)
+            exception, (requests.ConnectionError, requests.Timeout, requests.RequestException)
         ):
             return True
 
         # HTTP状态码错误
-        if isinstance(exception, httpx.HTTPStatusError):
+        if isinstance(exception, requests.HTTPError):
             status_code = exception.response.status_code
             return status_code in [408, 429, 500, 502, 503, 504]
 
@@ -119,10 +167,9 @@ class ManageApiClient:
 
     @classmethod
     def safe_close(cls):
-        """安全关闭连接池"""
-        if cls._client:
-            cls._client.close()
-            cls._instance = None
+        """清理实例"""
+        # requests库没有显式的关闭方法，这里只是清理实例
+        cls._instance = None
 
 
 def get_server_config() -> Optional[Dict]:
