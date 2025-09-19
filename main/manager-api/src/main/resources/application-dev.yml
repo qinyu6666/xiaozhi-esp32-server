@@ -12,7 +12,9 @@ spring:
     druid:
       #MySQL
       driver-class-name: com.mysql.cj.jdbc.Driver
-      url: jdbc:mysql://127.0.0.1:3306/xiaozhi_esp32_server?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&nullCatalogMeansCurrent=true
+      # url: jdbc:mysql://127.0.0.1:3306/xiaozhi_esp32_server?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&nullCatalogMeansCurrent=true
+      url: jdbc:mysql://127.0.0.1:3306/xiaozhi?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&nullCatalogMeansCurrent=true
+
       username: root
       password: 123456
       initial-size: 10
@@ -42,7 +44,7 @@ spring:
       port: 6379              # Redis服务器连接端口
       password:              # Redis服务器连接密码（默认为空）
       database: 0            # Redis数据库索引（默认为0）
-      timeout: 10000ms       # 连接超时时间（毫秒）
+      timeout: 11000ms       # 连接超时时间（毫秒）
       lettuce:
         pool:
           max-active: 8      # 连接池最大连接数（使用负值表示没有限制）
